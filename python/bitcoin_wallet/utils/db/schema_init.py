@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS addresses (
     wallet_id INTEGER NOT NULL,
     address TEXT NOT NULL UNIQUE,
     address_type TEXT CHECK(address_type IN ('p2pkh','p2sh','p2wpkh','p2tr')),
-    index_num INTEGER AUTOINCREMENT,
+    index_num INTEGER,
     derivation_path TEXT NOT NULL,
     is_change BOOLEAN DEFAULT 0,
     is_used BOOLEAN DEFAULT 0,

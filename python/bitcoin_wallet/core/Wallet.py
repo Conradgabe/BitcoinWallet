@@ -1,6 +1,6 @@
-from bitcoin_wallet.database.models import WalletDB, AddressDB
-from bitcoin_wallet.utils.crypto.keys import HDKeys
-from bitcoin_wallet.utils.crypto.security import Security
+from python.bitcoin_wallet.database.models import WalletDB, AddressDB
+from python.bitcoin_wallet.utils.crypto.keys import HDKeys
+from python.bitcoin_wallet.utils.crypto.security import Security
 
 import os
 import requests

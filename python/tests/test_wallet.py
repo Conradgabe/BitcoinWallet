@@ -1,105 +1,136 @@
 import pytest
-from pyzbar.pyzbar import decode
-from PIL import Image
-from python.bitcoin_wallet.core.wallet import BitcoinWallet
+from unittest.mock import MagicMock, patch
+from python.bitcoin_wallet.core.Wallet import Wallet
+
+@pytest.fixture
+def mock_wallet_deps():
+    """Fixture to mock all external dependencies of Wallet class."""
+    mock_wallet_db = MagicMock()
+    mock_address_db = MagicMock()
+    wallet = Wallet(mock_wallet_db, mock_address_db, network="testnet")
+    return wallet, mock_wallet_db, mock_address_db
 
 
-class TestBitcoinWallet:
-    """
-    Unit tests for the BitcoinWallet class.
-    """
+# ---------------------------------------------------------------------
+# TEST: _get_base_url
+# ---------------------------------------------------------------------
+def test_get_base_url_returns_correct_value(mock_wallet_deps):
+    wallet, _, _ = mock_wallet_deps
 
-    def test_create_new_wallet(self):
-        """
-        Test that a new wallet is created with a 12-word mnemonic
-        when none is provided, and that keys are generated.
-        """
-        wallet = BitcoinWallet()
-        mnemonic = wallet.get_mnemonic()
-        assert isinstance(mnemonic, str)
-        assert len(mnemonic.split(' ')) == 12
+    assert wallet._get_base_url() == "https://api.blockcypher.com/v1/btc/test3/addrs"
 
-        priv_key = wallet.get_master_private_key()
-        pub_key = wallet.get_master_public_key()
-        assert isinstance(priv_key, str)
-        assert len(priv_key) > 0
-        assert isinstance(pub_key, str)
-        assert len(pub_key) > 0
+    wallet.network = "mainnet"
+    assert wallet._get_base_url() == "https://api.blockcypher.com/v1/btc/main/addrs"
 
-    def test_create_from_existing_mnemonic(self):
-        """
-        Test creating a wallet from a known mnemonic phrase.
-        """
-        mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
-        wallet = BitcoinWallet(mnemonic=mnemonic)
-        assert wallet.get_mnemonic() == mnemonic
 
-    def test_deterministic_key_generation(self):
-        """
-        Test that the same mnemonic phrase always results in the same
-        private and public keys.
-        """
-        mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
-        wallet1 = BitcoinWallet(mnemonic=mnemonic)
-        wallet2 = BitcoinWallet(mnemonic=mnemonic)
+# ---------------------------------------------------------------------
+# TEST: create_new_wallet
+# ---------------------------------------------------------------------
+@patch("bitcoin_wallet.wallet.HDKeys")
+@patch("bitcoin_wallet.wallet.Security")
+def test_create_new_wallet_generates_and_saves(mock_security, mock_hdkeys, mock_wallet_deps):
+    wallet, mock_wallet_db, _ = mock_wallet_deps
 
-        assert wallet1.get_master_private_key() == wallet2.get_master_private_key()
-        assert wallet1.get_master_public_key() == wallet2.get_master_public_key()
+    # Mock HDKeys and Security methods
+    mock_hdkeys_instance = mock_hdkeys.return_value
+    mock_security_instance = mock_security.return_value
 
-    def test_different_mnemonics_produce_different_wallets(self):
-        """
-        Test that two wallets created without specified mnemonics have
-        different keys, as they should have different mnemonics.
-        """
-        wallet1 = BitcoinWallet()
-        wallet2 = BitcoinWallet()
+    mock_hdkeys_instance.generate_mnemonic.return_value = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+    mock_hdkeys_instance.generate_seed_from_mnemonic.return_value = b"seedbytes"
+    mock_security_instance.encrypt_mnemonic.return_value = {
+        "encrypted_mnemonic": b"ciphertext",
+        "kdf": "argon2id",
+        "kdf_salt": b"salt",
+        "kdf_params": {"time": 2, "mem": 1024},
+        "enc_nonce": b"nonce",
+        "version": 1
+    }
 
-        # It's astronomically unlikely, but check just in case of a bad random source
-        assert wallet1.get_mnemonic() != wallet2.get_mnemonic()
-        assert wallet1.get_master_private_key() != wallet2.get_master_private_key()
+    mock_wallet_db.create_wallet.return_value = 42
 
-    def test_bech32_address_format(self):
-        """
-        Test that get_bech32_address returns a valid testnet Bech32 address (starts with 'tb1').
-        """
-        wallet = BitcoinWallet(network='bitcoin')
-        addr = wallet.get_address()
-        assert isinstance(addr, str)
-        assert addr.startswith('bc1')
-        assert len(addr) > 10  # Bech32 addresses are longer
+    result = wallet.create_new_wallet("Test Wallet", "password123")
 
-    def test_qr_address_generation(self):
-        """
-        Test that generate_qr_code creates a QR code file for the wallet address.
+    assert result["wallet_id"] == 42
+    assert result["mnemonic"].startswith("abandon")
+    assert result["seed"] == b"seedbytes"
 
-        Also verifies that the QR code encodes the correct address.
-        """
-        wallet = BitcoinWallet()
-        addr = wallet.get_address()
-        qr_path = wallet.generate_qr_code(filename='test_qr.png')
-        assert qr_path == 'test_qr.png'
+    mock_wallet_db.create_wallet.assert_called_once()
+    mock_security_instance.encrypt_mnemonic.assert_called_once_with(result["mnemonic"], "password123")
 
-        # Decode the QR code to verify it encodes the correct address
-        decoded = decode(Image.open(qr_path))[0].data.decode()
-        assert decoded == addr
 
-        # Check that the file was created
-        import os
-        assert os.path.isfile(qr_path)
+# ---------------------------------------------------------------------
+# TEST: generate_new_address
+# ---------------------------------------------------------------------
+@patch("bitcoin_wallet.wallet.HDKeys")
+@patch("bitcoin_wallet.wallet.Security")
+def test_generate_new_address_success(mock_security, mock_hdkeys, mock_wallet_deps):
+    wallet, mock_wallet_db, mock_address_db = mock_wallet_deps
 
-        # Clean up the test QR code file
-        os.remove(qr_path)
+    # Mock DB
+    mock_wallet_db.get_wallet.return_value = {
+        "encrypted_mnemonic": b"encrypted-data"
+    }
 
-    def test_get_balance(self):
-        """
-        Test that get_balance returns an integer >= 0 for a valid address.
+    mock_address_db.get_next_address_index.return_value = 5
+    mock_address_db.create_address.return_value = 99
 
-        Note: This is an integration test and requires internet access.
-        The balance for a new wallet is expected to be 0.
-        """
-        wallet = BitcoinWallet(network='testnet')
-        balance = wallet.get_balance()
-        assert isinstance(balance, int)
-        assert balance >= 0
+    # Mock HDKeys and Security
+    mock_security_instance = mock_security.return_value
+    mock_security_instance.decrypt_mnemonic.return_value = "abandon abandon ..."
 
-        
+    mock_hdkeys_instance = mock_hdkeys.return_value
+    mock_hdkeys_instance.generate_seed_from_mnemonic.return_value = b"seedbytes"
+    mock_hdkeys_instance.generate_bip44_address.return_value = "tb1qexampleaddress"
+
+    result = wallet.generate_new_address(wallet_id=1, password="pass", change=False)
+
+    assert result["address"] == "tb1qexampleaddress"
+    assert "derivation_path" in result
+    assert "index" in result
+
+    mock_wallet_db.get_wallet.assert_called_once_with(wallet_id=1)
+    mock_security_instance.decrypt_mnemonic.assert_called_once()
+    mock_hdkeys_instance.generate_bip44_address.assert_called_once()
+
+
+# ---------------------------------------------------------------------
+# TEST: get_wallet_by_id
+# ---------------------------------------------------------------------
+def test_get_wallet_by_id(mock_wallet_deps):
+    wallet, mock_wallet_db, _ = mock_wallet_deps
+
+    mock_wallet_db.get_wallet.return_value = {"wallet_id": 123}
+    result = wallet.get_wallet_by_id(123)
+
+    assert result["wallet_id"] == 123
+    mock_wallet_db.get_wallet.assert_called_once_with(wallet_id=123)
+
+
+# ---------------------------------------------------------------------
+# TEST: get_balance_from_address
+# ---------------------------------------------------------------------
+@patch("bitcoin_wallet.wallet.requests.get")
+def test_get_balance_from_address_success(mock_get, mock_wallet_deps):
+    wallet, _, _ = mock_wallet_deps
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"balance": 1000}
+    mock_response.raise_for_status.return_value = None
+    mock_get.return_value = mock_response
+
+    result = wallet.get_balance_from_address("tb1qabc123")
+
+    assert result == {"balance": 1000}
+    mock_get.assert_called_once()
+    assert "tb1qabc123" in mock_get.call_args[0][0]
+
+
+@patch("bitcoin_wallet.wallet.requests.get")
+def test_get_balance_from_address_handles_exception(mock_get, mock_wallet_deps):
+    wallet, _, _ = mock_wallet_deps
+
+    mock_get.side_effect = Exception("Network error")
+
+    result = wallet.get_balance_from_address("tb1qabc123")
+
+    assert result is None
