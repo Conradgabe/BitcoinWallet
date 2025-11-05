@@ -14,12 +14,12 @@ class WalletDB:
     def __init__(self):
         pass
 
-    def create_wallet(self, name: str, encrypted_mnemonic: bytes, password: str, seed: bytes, kdf: str, kdf_salt: bytes, kdf_params: str, enc_nonce: bytes, version: int):
+    def create_wallet(self, name: str, encrypted_mnemonic: bytes, password: str, kdf: str, kdf_salt: bytes, kdf_params: str, enc_nonce: bytes, version: int):
         with get_db_cursor() as cur:
             cur.execute(
-                """INSERT INTO wallets (name, encrypted_mnemonic, seed, kdf, kdf_salt, kdf_params, enc_nonce, version) 
+                """INSERT INTO wallets (name, encrypted_mnemonic, password, kdf, kdf_salt, kdf_params, enc_nonce, version) 
                     VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (name, encrypted_mnemonic, seed, kdf, kdf_salt, kdf_params, enc_nonce, version)
+                (name, encrypted_mnemonic, password, kdf, kdf_salt, kdf_params, enc_nonce, version)
             )
             return cur.lastrowid
 

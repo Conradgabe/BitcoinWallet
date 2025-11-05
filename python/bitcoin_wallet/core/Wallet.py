@@ -1,21 +1,24 @@
 from bitcoin_wallet.database.models import WalletDB, AddressDB
 from bitcoin_wallet.utils.crypto.keys import HDKeys
 from bitcoin_wallet.utils.crypto.security import Security
-from dotenv import load_dotenv
 
 import os
 import requests
 
-load_dotenv()
 
-CYPHER_BASE_URL = os.getenv("CYPHER_BASE_URL")
 
 class Wallet:
-    def __init__(self, wallet_db: WalletDB, address_db: AddressDB):
+    def __init__(self, wallet_db: WalletDB, address_db: AddressDB, network: str="testnet"):
         self.wallet_db = wallet_db
         self.address_db = address_db
         self.hd_keys = HDKeys(None)
         self.security = Security()
+        self.network = network
+
+    def _get_base_url(self):
+        base = "https://api.blockcypher.com/v1/btc"
+        return f"{base}/test3/addrs" if self.network == "testnet" else f"{base}/main/addrs"
+
 
     
     def create_new_wallet(self, name: str, password: str):
@@ -30,7 +33,6 @@ class Wallet:
         wallet_id = self.wallet_db.create_wallet(
             name=name,
             encrypted_mnemonic=encrypted_data['encrypted_mnemonic'],
-            seed=seed,
             kdf=encrypted_data['kdf'],
             kdf_salt=encrypted_data['kdf_salt'],
             kdf_params=encrypted_data['kdf_params'],
@@ -38,9 +40,17 @@ class Wallet:
             version=encrypted_data['version']
         )
 
-        return wallet_id, mnemonic_phrase, seed
+        return {
+                "wallet_id": wallet_id,
+                "mnemonic": mnemonic_phrase,
+                "seed": seed
+            }
+
     
     def generate_new_address(self, wallet_id: int, password: str, change: bool, address_type: str='P2PKH', account_idx: int=0):
+
+        #TODO: Check if the password is valid later
+
         wallet_data = self.get_wallet_by_id(wallet_id=wallet_id)
         if not wallet_data:
             raise ValueError("Wallet ID is invalid")
@@ -58,7 +68,8 @@ class Wallet:
         address = self.hd_keys.generate_bip44_address(hd_keys_seed, account_idx, change, address_idx)
 
         # Store the address in the database
-        derivation_path = f"m/44'/0'/{account_idx}'/{int(change)}/{address_idx}"
+        coin_type = 1 if self.network == 'testnet' else 0
+        derivation_path = f"m/44'/{coin_type}'/{account_idx}'/{int(change)}/{address_idx}"
         self.address_db.create_address(
             wallet_id=wallet_id,
             address=address,
@@ -71,7 +82,12 @@ class Wallet:
 
         print(f"Successfully generated address: {address}")
 
-        return address
+        return {
+                "address": address,
+                "derivation_path": derivation_path,
+                "index": address_idx
+            }
+
     
     def get_wallet_from_seed(self, seed: str):
         data = self.wallet_db.get_wallet_from_seed(seed=seed)
@@ -83,17 +99,17 @@ class Wallet:
 
         return data
     
-    def get_balance_from_address(self, address: str, testnet: bool=True, unspent: bool=True):
-        if testnet:
-            url = CYPHER_BASE_URL + "test3/" + address + f"?unspentOnly={unspent}"
-        else:
-            url = CYPHER_BASE_URL + "main/" + address + f"?unspentOnly={unspent}"
+    def get_balance_from_address(self, address: str, unspent: bool=True):
+        url = f"{self._get_base_url()}{address}?unspentOnly={str(unspent).lower()}"
+        try:
+            response = requests.get(url, timeout=20)
+            response.raise_for_status()
+            data = response.json()
 
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-
-        return data
+            return data
+        except requests.RequestException as e:
+            print(f"Error fetching balance for {address}: {e}")
+            return None
     
     def send_bitcoin(self):
         ...
