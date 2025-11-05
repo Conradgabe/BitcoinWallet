@@ -1,6 +1,14 @@
 from bitcoin_wallet.database.models import WalletDB, AddressDB
 from bitcoin_wallet.utils.crypto.keys import HDKeys
 from bitcoin_wallet.utils.crypto.security import Security
+from dotenv import load_dotenv
+
+import os
+import requests
+
+load_dotenv()
+
+CYPHER_BASE_URL = os.getenv("CYPHER_BASE_URL")
 
 class Wallet:
     def __init__(self, wallet_db: WalletDB, address_db: AddressDB):
@@ -32,8 +40,8 @@ class Wallet:
 
         return wallet_id, mnemonic_phrase, seed
     
-    def generate_new_address(self, wallet_id: int, password: str, account_idx: int, change: bool, address_idx: int, address_type: str='P2PKH'):
-        wallet_data = self.wallet_db.get_wallet(wallet_id=wallet_id)
+    def generate_new_address(self, wallet_id: int, password: str, change: bool, address_type: str='P2PKH', account_idx: int=0):
+        wallet_data = self.get_wallet_by_id(wallet_id=wallet_id)
         if not wallet_data:
             raise ValueError("Wallet ID is invalid")
 
@@ -46,6 +54,7 @@ class Wallet:
         hd_keys_seed = self.hd_keys.generate_seed_from_mnemonic(mnemonic_phrase)
 
         # Generate the address
+        address_idx = self.address_db.get_next_address_index(wallet_id=wallet_id)
         address = self.hd_keys.generate_bip44_address(hd_keys_seed, account_idx, change, address_idx)
 
         # Store the address in the database
@@ -60,6 +69,8 @@ class Wallet:
             is_used=False
         )
 
+        print(f"Successfully generated address: {address}")
+
         return address
     
     def get_wallet_from_seed(self, seed: str):
@@ -71,3 +82,20 @@ class Wallet:
         data = self.wallet_db.get_wallet(wallet_id=wallet_id)
 
         return data
+    
+    def get_balance_from_address(self, address: str, testnet: bool=True, unspent: bool=True):
+        if testnet:
+            url = CYPHER_BASE_URL + "test3/" + address + f"?unspentOnly={unspent}"
+        else:
+            url = CYPHER_BASE_URL + "main/" + address + f"?unspentOnly={unspent}"
+
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+
+        return data
+    
+    def send_bitcoin(self):
+        ...
+
+    

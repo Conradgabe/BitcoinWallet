@@ -30,6 +30,7 @@ pynacl==1.6.0
 pytest==8.3.5
 python-bitcoinrpc==1.0
 python-bitcointx==1.1.5
+python-dotenv==1.0.1
 pyzbar==0.1.9
 requests==2.32.4
 six==1.17.0

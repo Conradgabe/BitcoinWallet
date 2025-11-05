@@ -24,3 +24,4 @@ FEAT_ADDR.md
 
 # Wallet file
 wallet.db
+.env
