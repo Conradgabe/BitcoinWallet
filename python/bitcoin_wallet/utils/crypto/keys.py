@@ -104,9 +104,9 @@ class HDKeys(Keys):
             addr = hd.generate_bip44_address(account_idx=0, change=False, address_idx=0)
     """
 
-    def __init__(self, seed: bytes):
+    def __init__(self, passphrase: Optional[str]=""):
         # seed: BIP39 64-bytes seed
-        self.seed = seed
+        self.passphrase = passphrase
 
     @classmethod
     def from_mnemonic(cls, mnemonic_phrase: str, passphrase: Optional[str]="") -> "HDKeys":
@@ -130,7 +130,7 @@ class HDKeys(Keys):
 
         return mnemonic_phrase
     
-    def generate_seed_from_mnemonic(cls, mnemonic_phrase: str, passphrase: Optional[str]="") -> bytes:
+    def generate_seed_from_mnemonic(self, mnemonic_phrase: str, passphrase: Optional[str]="") -> bytes:
         """Generates seed from mnemonic phrase, passphrase is optional
         
         Returns: seed bytes

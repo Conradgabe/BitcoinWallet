@@ -21,3 +21,6 @@ pip-selfcheck.json
 MEMORY.md
 LEARNING.md
 FEAT_ADDR.md
+
+# Wallet file
+wallet.db

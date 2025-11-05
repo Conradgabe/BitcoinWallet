@@ -14,12 +14,12 @@ class WalletDB:
     def __init__(self):
         pass
 
-    def create_wallet(self, name: str, encrypted_mnemonic: bytes, kdf: str, kdf_salt: bytes, kdf_params: str, enc_nonce: bytes, version: int):
+    def create_wallet(self, name: str, encrypted_mnemonic: bytes, password: str, seed: bytes, kdf: str, kdf_salt: bytes, kdf_params: str, enc_nonce: bytes, version: int):
         with get_db_cursor() as cur:
             cur.execute(
-                """INSERT INTO wallets (name, encrypted_mnemonic, kdf, kdf_salt, kdf_params, enc_nonce, version) 
+                """INSERT INTO wallets (name, encrypted_mnemonic, seed, kdf, kdf_salt, kdf_params, enc_nonce, version) 
                     VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (name, encrypted_mnemonic, kdf, kdf_salt, kdf_params, enc_nonce, version)
+                (name, encrypted_mnemonic, seed, kdf, kdf_salt, kdf_params, enc_nonce, version)
             )
             return cur.lastrowid
 
@@ -37,6 +37,13 @@ class WalletDB:
                 (wallet_id,)
             )
             return cur.fetchone()
+    
+    def get_wallet_from_seed(self, seed: str):
+        with get_db_cursor() as cur:
+            cur.execute(
+                "SELECT * FROM wallets WHERE seed = ?",
+                (seed)
+            )
 
 class AddressDB:
     """Sqlite object to handle address operations"""
@@ -63,6 +70,19 @@ class AddressDB:
                 "DELETE FROM addresses WHERE address = ?",
                 (address,)
             )
+
+    def get_the_last_address_index(self, wallet_id: int, is_change: bool=False):
+        with get_db_cursor() as cur:
+            cur.execute(
+                "SELECT MAX(index_num) FROM addresses WHERE wallet_id = ? AND is_change = ?",
+                (wallet_id, is_change)
+            )
+            result = cur.fetchone()
+            return result[0] if result and result[0] is not None else result[-1]
+        
+    def get_next_address_index(self, wallet_id: int, is_change: bool=False):
+        last_index = self.get_the_last_address_index(wallet_id, is_change)
+        return last_index + 1
 
     def all_addresses(self, wallet_id: str):
         with get_db_cursor() as cur:
