@@ -18,7 +18,7 @@ class WalletDB:
         with get_db_cursor() as cur:
             cur.execute(
                 """INSERT INTO wallets (name, encrypted_mnemonic, password, kdf, kdf_salt, kdf_params, enc_nonce, version) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (name, encrypted_mnemonic, password, kdf, kdf_salt, kdf_params, enc_nonce, version)
             )
             return cur.lastrowid

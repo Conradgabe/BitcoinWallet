@@ -7,7 +7,6 @@ CREATE TABLE IF NOT EXISTS wallets (
     name TEXT NOT NULL,
     encrypted_mnemonic BLOB NOT NULL,
     password TEXT NOT NULL,
-    seed BLOB NOT NULL UNIQUE,
     kdf TEXT NOT NULL,
     kdf_salt BLOB NOT NULL,
     kdf_params TEXT NOT NULL,

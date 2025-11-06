@@ -33,6 +33,7 @@ def test_create_and_delete_wallet(temp_db):
     wallet_id = wallet_db.create_wallet(
         "TestWallet",
         b"encrypted_mnemonic",
+        "password",
         "argon2id",
         b"salt",
         '{"time_cost":2,"memory_cost":65536,"parallelism":4,"hash_len":32}',
@@ -58,6 +59,7 @@ def test_create_and_list_addresses(temp_db):
     wallet_id = wallet_db.create_wallet(
         "AddrWallet",
         b"enc",
+        "password",
         "argon2id",
         b"salt",
         "{}",
@@ -89,6 +91,7 @@ def test_delete_address(temp_db):
     wallet_id = wallet_db.create_wallet(
         "AddrWallet2",
         b"enc",
+        "password",
         "argon2id",
         b"salt",
         "{}",
@@ -117,6 +120,7 @@ def test_add_and_list_transaction(temp_db):
     wallet_id = wallet_db.create_wallet(
         "TxWallet",
         b"enc",
+        "password",
         "argon2id",
         b"salt",
         "{}",
